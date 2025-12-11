@@ -1,0 +1,58 @@
+# TLS Server
+# Author: Connor (Modified for TLS)
+
+from socket import *
+import ssl
+
+SERVER_PORT = 12000
+CERT_FILE = 'server.crt'
+KEY_FILE = 'server.key'
+
+def handle_client(connection_socket, addr):
+    print(f" > Secure connection established with {addr}")
+    try:
+        while True:
+            data = connection_socket.recv(1024)
+            if not data:
+                break
+            # Echo back
+            print(f"   Received: {data.decode('utf-8')}")
+            connection_socket.sendall(data)
+    except Exception as e:
+        print(f"   Error: {e}")
+    finally:
+        connection_socket.close()
+        print(f" > Connection closed for {addr}")
+
+def start_server():
+    # 1. Standard TCP Setup
+    server_socket = socket(AF_INET, SOCK_STREAM)
+    server_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+    server_socket.bind(('', SERVER_PORT))
+    server_socket.listen(1)
+
+    # 2. Create SSL Context (Load the certs you just made)
+    context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    context.load_cert_chain(certfile=CERT_FILE, keyfile=KEY_FILE)
+
+    print(f"TLS Server listening on port {SERVER_PORT}...")
+
+    try:
+        while True:
+            # 3. Accept TCP Connection
+            client_sock, client_addr = server_socket.accept()
+            
+            # 4. Wrap in TLS (The "Handshake")
+            try:
+                ssl_socket = context.wrap_socket(client_sock, server_side=True)
+                handle_client(ssl_socket, client_addr)
+            except ssl.SSLError as e:
+                print(f"SSL Handshake Failed: {e}")
+                client_sock.close()
+    except KeyboardInterrupt:
+        print("\nServer stopping...")
+    finally:
+        server_socket.close()
+
+if __name__ == "__main__":
+    start_server()
